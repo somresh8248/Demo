@@ -13,12 +13,13 @@
         }
 
         .container {
-            width: 400px;
+            width: 90%;
+            max-width: 400px;
             margin: 100px auto;
             background: white;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
 
@@ -52,114 +53,200 @@
             color: #777;
             margin-top: 15px;
         }
+
+        /* Better Mobile Responsive */
+
+        @media (max-width: 768px) {
+
+            body {
+                padding: 15px;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-sizing: border-box;
+            }
+
+            .container {
+                width: 100%;
+                max-width: 420px;
+                margin: 0 auto;
+                padding: 25px 20px;
+                border-radius: 14px;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            }
+
+            h2 {
+                font-size: 24px;
+                line-height: 1.4;
+                margin-bottom: 25px;
+            }
+
+            input[type="file"] {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid #dcdcdc;
+                border-radius: 8px;
+                background: #fafafa;
+                font-size: 14px;
+                box-sizing: border-box;
+                margin-bottom: 20px;
+            }
+
+            button {
+                width: 100%;
+                padding: 14px;
+                font-size: 16px;
+                border-radius: 8px;
+                font-weight: 600;
+            }
+
+            .info {
+                font-size: 13px;
+                line-height: 1.6;
+                margin-top: 18px;
+            }
+        }
+
+        @media (max-width: 480px) {
+
+            body {
+                padding: 12px;
+            }
+
+            .container {
+                padding: 22px 16px;
+            }
+
+            h2 {
+                font-size: 20px;
+            }
+
+            input[type="file"] {
+                font-size: 13px;
+                padding: 9px;
+            }
+
+            button {
+                font-size: 15px;
+                padding: 13px;
+            }
+
+            .info {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 
 <body>
 
-<div class="container">
-    <h2>PDF Header & Footer Tool</h2>
+    <div class="container">
+        <h2>PDF Header & Footer Tool</h2>
 
-    <input type="file" id="pdfUpload">
+        <input type="file" id="pdfUpload">
 
-    <button onclick="processPDF()">Download Updated PDF</button>
+        <button onclick="processPDF()">Download Updated PDF</button>
 
-    <div class="info">
-        Upload a PDF to add SRL header & footer automatically
+        <div class="info">
+            Upload a PDF to add SRL header & footer automatically
+        </div>
     </div>
-</div>
 
-<script>
-async function processPDF() {
-    try {
+    <script>
+        async function processPDF() {
+            try {
 
-        const fileInput = document.getElementById('pdfUpload');
+                const fileInput = document.getElementById('pdfUpload');
 
-        if (!fileInput.files.length) {
-            alert("Upload PDF first");
-            return;
+                if (!fileInput.files.length) {
+                    alert("Upload PDF first");
+                    return;
+                }
+
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pages = pdfDoc.getPages();
+
+                const newPdf = await PDFLib.PDFDocument.create();
+
+                const headerBytes = await fetch('header.jpeg').then(res => res.arrayBuffer());
+                const headerImage = await newPdf.embedJpg(headerBytes);
+
+                const footerBytes = await fetch('footer.jpeg').then(res => res.arrayBuffer());
+                const footerImage = await newPdf.embedJpg(footerBytes);
+
+                for (let i = 0; i < pages.length; i++) {
+
+                    const oldPage = pages[i];
+                    const { width, height } = oldPage.getSize();
+
+                    // Reduced header & footer height
+                    const headerHeight = 60;
+                    const footerHeight = 50;
+
+                    // Keep original page size
+                    const newPage = newPdf.addPage([
+                        width,
+                        height
+                    ]);
+
+                    const embeddedPage = await newPdf.embedPage(oldPage);
+
+                    // Draw original PDF page
+                    newPage.drawPage(embeddedPage, {
+                        x: 0,
+                        y: 25,
+                        width: width,
+                        height: height
+                    });
+
+                    // Draw Header at top
+                    newPage.drawImage(headerImage, {
+                        x: 0,
+                        y: height - headerHeight,
+                        width: width,
+                        height: headerHeight
+                    });
+
+                    // Draw Footer at bottom
+                    newPage.drawImage(footerImage, {
+                        x: 0,
+                        y: 0,
+                        width: width,
+                        height: footerHeight
+                    });
+
+                    // Page Number
+                    newPage.drawText(`Page ${i + 1}`, {
+                        x: width - 80,
+                        y: 20,
+                        size: 10
+                    });
+                }
+                const pdfBytes = await newPdf.save();
+
+                const blob = new Blob([pdfBytes], { type: "application/pdf" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+
+                const originalFileName = file.name.replace('.pdf', '');
+                a.download = originalFileName + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error(error);
+                alert("Error processing PDF: " + error.message);
+            }
         }
-
-        const file = fileInput.files[0];
-        const arrayBuffer = await file.arrayBuffer();
-
-        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-        const pages = pdfDoc.getPages();
-
-        const newPdf = await PDFLib.PDFDocument.create();
-
-        const headerBytes = await fetch('header.jpeg').then(res => res.arrayBuffer());
-        const headerImage = await newPdf.embedJpg(headerBytes);
-
-        const footerBytes = await fetch('footer.jpeg').then(res => res.arrayBuffer());
-        const footerImage = await newPdf.embedJpg(footerBytes);
-
-       for (let i = 0; i < pages.length; i++) {
-
-    const oldPage = pages[i];
-    const { width, height } = oldPage.getSize();
-
-    // Reduced header & footer height
-    const headerHeight = 60;
-    const footerHeight = 50;
-
-    // Keep original page size
-    const newPage = newPdf.addPage([
-        width,
-        height
-    ]);
-
-    const embeddedPage = await newPdf.embedPage(oldPage);
-
-    // Draw original PDF page
-    newPage.drawPage(embeddedPage, {
-        x: 0,
-        y: 25,
-        width: width,
-        height: height
-    });
-
-    // Draw Header at top
-    newPage.drawImage(headerImage, {
-        x: 0,
-        y: height - headerHeight,
-        width: width,
-        height: headerHeight
-    });
-
-    // Draw Footer at bottom
-    newPage.drawImage(footerImage, {
-        x: 0,
-        y: 0,
-        width: width,
-        height: footerHeight
-    });
-
-    // Page Number
-    newPage.drawText(`Page ${i + 1}`, {
-        x: width - 80,
-        y: 20,
-        size: 10
-    });
-}
-        const pdfBytes = await newPdf.save();
-
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "Updated_Report.pdf";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-    } catch (error) {
-        console.error(error);
-        alert("Error processing PDF: " + error.message);
-    }
-}
-</script>
+    </script>
 
 </body>
+
 </html>
